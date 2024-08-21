@@ -3,6 +3,7 @@
 // #include <stdarg.h>
 #include <emscripten.h>
 #include "turbojpeg.h"
+#include "src/webp/encode.h"
 
 // char* format_string(const char* format, ...) {
 //     // 预分配一个初始缓冲区
@@ -81,33 +82,21 @@
 
 EMSCRIPTEN_KEEPALIVE void tidy(
   uint8_t *raw,
-  unsigned long size,
+  int width,
+  int height,
   int quanlity,
   uint8_t **_out,
-  unsigned long *_ps
+  size_t *_ps
 ) {
-  // 解压
-  tjhandle handle = tjInitDecompress();
 
-  int width, height, sub, cs;
-
-  tjDecompressHeader3(handle, raw, size, &width, &height, &sub, &cs);
-
-  int pixelSize = tjPixelSize[TJPF_RGB];
-  uint8_t *dstBuf = malloc(width * height * pixelSize);
-
-  tjDecompress2(handle, raw, size, dstBuf, width, 0, height, TJPF_RGB, 0);
-
-  tjDestroy(handle);
-
-  handle = tjInitCompress();
+  tjhandle handle = tjInitCompress();
 
   uint8_t *out = NULL;
   unsigned long ps = 0;
 
   tjCompress2(
     handle,
-    dstBuf,
+    raw,
     width,
     0,
     height,
@@ -121,7 +110,23 @@ EMSCRIPTEN_KEEPALIVE void tidy(
   *_out = out;
   *_ps = ps;
 
-  free(dstBuf);
-
   tjDestroy(handle);
+}
+
+EMSCRIPTEN_KEEPALIVE void tidy_webp(
+  uint8_t *raw,
+  int w,
+  int h,
+  int quanlity,
+  int alpha,
+  uint8_t **_out,
+  unsigned long *_ps
+) {
+  uint8_t *out = NULL;
+  if (alpha == 0) {
+    *_ps = WebPEncodeRGB(raw, w, h, w * 3, quanlity, &out);
+  } else {
+    *_ps = WebPEncodeRGBA(raw, w, h, w * 4, quanlity, &out);
+  }
+  *_out = out;
 }
